@@ -7,9 +7,11 @@ package gocui
 import (
 	"bytes"
 	"errors"
+	"image"
 	"io"
 	"strings"
 
+	termui "github.com/gizak/termui/v3"
 	"github.com/nsf/termbox-go"
 )
 
@@ -228,6 +230,20 @@ func (v *View) Write(p []byte) (n int, err error) {
 		}
 	}
 	return len(p), nil
+}
+func (v *View) WriteWidget(buf termui.Buffer) {
+	v.tainted = true
+	for y := 0; y < buf.Dy(); y++ {
+		row := []cell{}
+		for x := 0; x < buf.Dx(); x++ {
+			c := cell{}
+			c.chr = buf.CellMap[image.Point{x, y}].Rune
+			c.bgColor = Attribute(buf.CellMap[image.Point{x, y}].Style.Bg + 1)
+			c.fgColor = Attribute(buf.CellMap[image.Point{x, y}].Style.Fg + 1)
+			row = append(row, c)
+		}
+		v.lines = append(v.lines, row)
+	}
 }
 
 // parseInput parses char by char the input written to the View. It returns nil
@@ -501,3 +517,153 @@ func (v *View) Word(x, y int) (string, error) {
 func indexFunc(r rune) bool {
 	return r == ' ' || r == 0
 }
+
+// // Drawable satisfies interface
+// type Drawable interface {
+// 	GetRect() image.Rectangle
+// 	SetRect(int, int, int, int)
+// 	Draw(*termui.Buffer)
+// 	sync.Locker
+// }
+
+// func (v *View) RenderWidget(items ...Drawable) {
+// 	for _, item := range items {
+// 		buf := termui.NewBuffer(item.GetRect())
+// 		item.Lock()
+// 		item.Draw(buf)
+// 		item.Unlock()
+// 		fmt.Fprintf(main, "buff: %+v\n\n", buf.CellMap)
+// 		for point, cell := range buf.CellMap {
+// 			if point.In(buf.Rectangle) {
+// 				fmt.Fprintf(v, "set cell: %+v\n", cell.Rune)
+// 				v.setRune(point.X, point.Y, cell.Rune, 0, 0)
+// 				v.Buffer()
+
+// 				// termbox.SetCell(
+// 				// 	point.X, point.Y,
+// 				// 	cell.Rune,
+// 				// 	termbox.Attribute(cell.Style.Fg+1)|termbox.Attribute(cell.Style.Modifier), termbox.Attribute(cell.Style.Bg+1),
+// 				// )
+// 			}
+// 		}
+// 	}
+// 	termbox.Flush()
+// 	time.Sleep(time.Second * 3)
+// }
+
+// // Cell represents a viewable terminal cell
+// type Cell struct {
+// 	Rune  rune
+// 	Style Style
+// }
+
+// var CellClear = Cell{
+// 	Rune:  ' ',
+// 	Style: StyleClear,
+// }
+
+// // NewCell takes 1 to 2 arguments
+// // 1st argument = rune
+// // 2nd argument = optional style
+// func NewCell(rune rune, args ...interface{}) Cell {
+// 	style := StyleClear
+// 	if len(args) == 1 {
+// 		style = args[0].(Style)
+// 	}
+// 	return Cell{
+// 		Rune:  rune,
+// 		Style: style,
+// 	}
+// }
+
+// // Buffer represents a section of a terminal and is a renderable rectangle of cells.
+// type Buffer struct {
+// 	image.Rectangle
+// 	CellMap map[image.Point]Cell
+// }
+
+// func NewBuffer(r image.Rectangle) *Buffer {
+// 	buf := &Buffer{
+// 		Rectangle: r,
+// 		CellMap:   make(map[image.Point]Cell),
+// 	}
+// 	buf.Fill(CellClear, r) // clears out area
+// 	return buf
+// }
+
+// func (self *Buffer) GetCell(p image.Point) Cell {
+// 	return self.CellMap[p]
+// }
+
+// func (self *Buffer) SetCell(c Cell, p image.Point) {
+// 	self.CellMap[p] = c
+// }
+
+// func (self *Buffer) Fill(c Cell, rect image.Rectangle) {
+// 	for x := rect.Min.X; x < rect.Max.X; x++ {
+// 		for y := rect.Min.Y; y < rect.Max.Y; y++ {
+// 			self.SetCell(c, image.Pt(x, y))
+// 		}
+// 	}
+// }
+
+// func (self *Buffer) SetString(s string, style Style, p image.Point) {
+// 	runes := []rune(s)
+// 	x := 0
+// 	for _, char := range runes {
+// 		self.SetCell(Cell{char, style}, image.Pt(p.X+x, p.Y))
+// 		x += rw.RuneWidth(char)
+// 	}
+// }
+
+// // Color is an integer from -1 to 255
+// // -1 = ColorClear
+// // 0-255 = Xterm colors
+// type Color int
+
+// // ColorClear clears the Fg or Bg color of a Style
+// const ColorClear Color = -1
+
+// type CellModifier uint
+
+// const (
+// 	// ModifierClear clears any modifiers
+// 	CellModifierClear     CellModifier = 0
+// 	CellModifierBold      CellModifier = 1 << 9
+// 	CellModifierUnderline CellModifier = 1 << 10
+// 	CellModifierReverse   CellModifier = 1 << 11
+// )
+
+// // Style represents the style of one terminal cell
+// type Style struct {
+// 	Fg       Color
+// 	Bg       Color
+// 	Modifier CellModifier
+// }
+
+// // StyleClear represents a default Style, with no colors or modifiers
+// var StyleClear = Style{
+// 	Fg:       ColorClear,
+// 	Bg:       ColorClear,
+// 	Modifier: CellModifierClear,
+// }
+
+// // NewStyle takes 1 to 3 arguments
+// // 1st argument = Fg
+// // 2nd argument = optional Bg
+// // 3rd argument = optional Modifier
+// func NewStyle(fg Color, args ...interface{}) Style {
+// 	bg := ColorClear
+// 	modifier := CellModifierClear
+// 	if len(args) >= 1 {
+// 		bg = args[0].(Color)
+// 	}
+// 	if len(args) == 2 {
+// 		modifier = args[1].(CellModifier)
+// 	}
+// 	return Style{
+// 		fg,
+// 		bg,
+// 		modifier,
+// 	}
+// }
